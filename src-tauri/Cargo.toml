@@ -1,0 +1,18 @@
+[package]
+name = "lightmark"
+version = "0.1.0"
+description = "A local desktop app for rendering photo metadata summary cards."
+authors = ["Lightmark"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2.0.0", features = [] }
+
+[dependencies]
+base64 = "0.22"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "tiff"] }
+kamadak-exif = "0.6"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2.0.0", features = [] }
+tauri-plugin-dialog = "2.0.0"
