@@ -1,6 +1,6 @@
 # Lightmark
 
-Lightmark is a local desktop app for turning photo metadata into clean, exportable summary cards. Open a photo, review or edit the extracted EXIF details, add production notes, choose a visual theme, and export the result as a PNG or JPG.
+Lightmark is a local desktop app for turning photo metadata into clean, exportable summary cards for use on social media. Open a photo, review or edit the extracted EXIF details, add production notes, choose a visual theme, and export the result as a PNG or JPG. It's Photo Summary, but clean, faster and more feature packed. And the best of all: Open Source and free. 
 
 ## Features
 
