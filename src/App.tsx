@@ -20,7 +20,7 @@ import {
   loadPhoto,
 } from "./lib/tauriApi";
 import { checkForAppUpdate, installAppUpdate, type AvailableAppUpdate, type UpdateInstallProgress } from "./lib/updater";
-import type { BlurBackend } from "./lib/renderer";
+import type { BlurBackend, OverlayPosition } from "./lib/renderer";
 import type { NormalizedExif, OutputFormat, PhotoAsset, UserFieldKey, UserPhotoFields } from "./lib/types";
 
 const FIELD_GROUPS: Array<{ title: string; fields: Array<{ key: UserFieldKey; label: string }> }> = [
@@ -51,6 +51,28 @@ const FIELD_GROUPS: Array<{ title: string; fields: Array<{ key: UserFieldKey; la
 const APP_SETTINGS_KEY = "lightmark.settings";
 const PRESETS_KEY = "lightmark.presets";
 const PRODUCTION_FIELD_KEYS = ["lightingModifier", "lightSource", "photographer", "notes"] as const;
+const USER_FIELD_KEYS: UserFieldKey[] = [
+  "aperture",
+  "shutterSpeed",
+  "iso",
+  "focalLength",
+  "cameraBody",
+  "lens",
+  "captureTime",
+  "bitDepth",
+  "lightingModifier",
+  "lightSource",
+  "photographer",
+  "notes",
+];
+const OVERLAY_POSITIONS: Array<{ value: OverlayPosition; label: string }> = [
+  { value: "top-left", label: "Top left" },
+  { value: "top-right", label: "Top right" },
+  { value: "center-left", label: "Center left" },
+  { value: "center-right", label: "Center right" },
+  { value: "bottom-left", label: "Bottom left" },
+  { value: "bottom-right", label: "Bottom right" },
+];
 const SUPPORTED_IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "heic", "heif", "tif", "tiff"]);
 const SUPPORTED_IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/heic", "image/heif", "image/tiff", "image/x-tiff"]);
 
@@ -60,12 +82,15 @@ type BlurBackendStatus = BlurBackend | "Rendering" | "Idle";
 type ActivityStepState = "pending" | "active" | "done" | "error";
 type ProductionFieldKey = (typeof PRODUCTION_FIELD_KEYS)[number];
 type ProductionFields = Pick<UserPhotoFields, ProductionFieldKey>;
+type FieldVisibility = Record<UserFieldKey, boolean>;
 
 interface StoredSettings {
   themeId: string;
   format: OutputFormat;
   blurRadius: number;
   showPanelRule: boolean;
+  overlayPosition: OverlayPosition;
+  fieldVisibility: FieldVisibility;
 }
 
 interface UserPreset {
@@ -76,6 +101,8 @@ interface UserPreset {
   format: OutputFormat;
   blurRadius: number;
   showPanelRule: boolean;
+  overlayPosition: OverlayPosition;
+  fieldVisibility: FieldVisibility;
 }
 
 interface ActivityStep {
@@ -98,6 +125,8 @@ export function App() {
   const [blurInput, setBlurInput] = useState(initialSettings.blurRadius);
   const [blurRadius, setBlurRadius] = useState(initialSettings.blurRadius);
   const [showPanelRule, setShowPanelRule] = useState(initialSettings.showPanelRule);
+  const [overlayPosition, setOverlayPosition] = useState(initialSettings.overlayPosition);
+  const [fieldVisibility, setFieldVisibility] = useState(initialSettings.fieldVisibility);
   const [presets, setPresets] = useState<UserPreset[]>(loadStoredPresets);
   const [selectedPresetId, setSelectedPresetId] = useState("");
   const [presetName, setPresetName] = useState("");
@@ -105,7 +134,7 @@ export function App() {
   const [activity, setActivity] = useState<ActivityState | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [availableUpdate, setAvailableUpdate] = useState<AvailableAppUpdate | null>(null);
-  const [updateStatus, setUpdateStatus] = useState("Updates install from GitHub releases.");
+  const [updateStatus, setUpdateStatus] = useState("Running latest release");
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
   const [isInstallingUpdate, setIsInstallingUpdate] = useState(false);
   const [isDraggingPhoto, setIsDraggingPhoto] = useState(false);
@@ -120,7 +149,10 @@ export function App() {
   const blurBackendRef = useRef<BlurBackend | null>(null);
 
   const theme = useMemo(() => THEMES.find((candidate) => candidate.id === themeId) ?? DEFAULT_THEME, [themeId]);
-  const rows = useMemo(() => buildRenderMetadata(fields), [fields]);
+  const rows = useMemo(
+    () => buildRenderMetadata(fields).filter((row) => fieldVisibility[row.key]),
+    [fields, fieldVisibility],
+  );
   const selectedPreset = useMemo(
     () => presets.find((preset) => preset.id === selectedPresetId) ?? null,
     [presets, selectedPresetId],
@@ -131,8 +163,8 @@ export function App() {
   );
 
   useEffect(() => {
-    saveStoredSettings({ themeId, format, blurRadius, showPanelRule });
-  }, [themeId, format, blurRadius, showPanelRule]);
+    saveStoredSettings({ themeId, format, blurRadius, showPanelRule, overlayPosition, fieldVisibility });
+  }, [themeId, format, blurRadius, showPanelRule, overlayPosition, fieldVisibility]);
 
   useEffect(() => {
     saveStoredPresets(presets);
@@ -269,6 +301,7 @@ export function App() {
           previewBackground,
           blurRadius,
           showPanelRule,
+          overlayPosition,
         );
         completeActivityStep("render");
         finishActivitySoon();
@@ -281,7 +314,7 @@ export function App() {
         renderFrameRef.current = null;
       }
     };
-  }, [previewImage, previewBackground, rows, theme, renderSize, blurRadius, showPanelRule]);
+  }, [previewImage, previewBackground, rows, theme, renderSize, blurRadius, showPanelRule, overlayPosition]);
 
   async function handleOpenPhoto() {
     setIsBusy(true);
@@ -470,6 +503,10 @@ export function App() {
     setFields((current) => ({ ...current, [key]: value }));
   }
 
+  function updateFieldVisibility(key: UserFieldKey, visible: boolean) {
+    setFieldVisibility((current) => ({ ...current, [key]: visible }));
+  }
+
   function commitBlur() {
     setBlurRadius(blurInput);
   }
@@ -498,6 +535,8 @@ export function App() {
       format,
       blurRadius,
       showPanelRule,
+      overlayPosition,
+      fieldVisibility,
     };
 
     setPresets((current) => {
@@ -527,6 +566,8 @@ export function App() {
     setBlurInput(selectedPreset.blurRadius);
     setBlurRadius(selectedPreset.blurRadius);
     setShowPanelRule(selectedPreset.showPanelRule);
+    setOverlayPosition(selectedPreset.overlayPosition);
+    setFieldVisibility(selectedPreset.fieldVisibility);
     setStatus(`Applied preset "${selectedPreset.name}".`);
   }
 
@@ -572,7 +613,18 @@ export function App() {
 
       setActivityStep("compose", "active");
       await nextFrame();
-      renderSummaryCanvas(canvas, image, rows, theme, renderSize, 1, background.canvas, blurRadius, showPanelRule);
+      renderSummaryCanvas(
+        canvas,
+        image,
+        rows,
+        theme,
+        renderSize,
+        1,
+        background.canvas,
+        blurRadius,
+        showPanelRule,
+        overlayPosition,
+      );
       setActivityStep("compose", "done");
 
       setActivityStep("encode", "active");
@@ -628,14 +680,11 @@ export function App() {
         return;
       }
 
-      if (showUpToDateStatus) {
-        setUpdateStatus("Lightmark is up to date.");
-      } else {
-        setUpdateStatus("No update available.");
-      }
+      setUpdateStatus("Running latest release");
     } catch (error) {
       setAvailableUpdate(null);
-      setUpdateStatus(errorMessage(error, "Could not check for updates."));
+      const message = errorMessage(error, "Could not check for updates.");
+      setUpdateStatus(isMissingReleaseMetadata(message) ? "Running latest release" : message);
     } finally {
       setIsCheckingUpdate(false);
     }
@@ -767,6 +816,21 @@ export function App() {
           </div>
 
           <div className="control-block">
+            <label htmlFor="overlay-position">Overlay position</label>
+            <select
+              id="overlay-position"
+              value={overlayPosition}
+              onChange={(event) => setOverlayPosition(event.target.value as OverlayPosition)}
+            >
+              {OVERLAY_POSITIONS.map((position) => (
+                <option key={position.value} value={position.value}>
+                  {position.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="control-block">
             <div className="range-label">
               <label htmlFor="blur">Blur</label>
               <span>{blurInput}</span>
@@ -812,6 +876,7 @@ export function App() {
                 checked={showPanelRule}
                 onChange={(event) => setShowPanelRule(event.target.checked)}
               />
+              <span className="switch-control" aria-hidden="true" />
             </label>
           </div>
 
@@ -853,6 +918,7 @@ export function App() {
             <div>
               <strong>Updates</strong>
               <p>{updateStatus}</p>
+              {availableUpdate?.body && <pre className="release-notes">{availableUpdate.body}</pre>}
             </div>
             {availableUpdate ? (
               <button className="update-action" type="button" onClick={installAvailableUpdate} disabled={isInstallingUpdate}>
@@ -901,19 +967,31 @@ export function App() {
           )}
         </section>
 
-        <aside className="field-panel">
+          <aside className="field-panel">
           {FIELD_GROUPS.map((group) => (
             <fieldset key={group.title}>
               <legend>{group.title}</legend>
               {group.fields.map((field) => (
-                <label key={field.key} className="field-row">
-                  <span>{field.label}</span>
+                <div key={field.key} className="field-row">
+                  <div className="field-row-heading">
+                    <label htmlFor={`field-${field.key}`}>{field.label}</label>
+                    <label className="visibility-toggle">
+                      <span>Show</span>
+                      <input
+                        type="checkbox"
+                        checked={fieldVisibility[field.key]}
+                        onChange={(event) => updateFieldVisibility(field.key, event.target.checked)}
+                      />
+                      <span className="switch-control" aria-hidden="true" />
+                    </label>
+                  </div>
                   <input
+                    id={`field-${field.key}`}
                     value={fields[field.key]}
                     placeholder={placeholderFor(field.key, asset?.exif)}
                     onChange={(event) => updateField(field.key, event.target.value)}
                   />
-                </label>
+                </div>
               ))}
             </fieldset>
           ))}
@@ -954,6 +1032,10 @@ function formatUpdateProgress(progress: UpdateInstallProgress): string {
 
 function isDevBuild(): boolean {
   return Boolean((import.meta as ImportMeta & { env?: { DEV?: boolean } }).env?.DEV);
+}
+
+function isMissingReleaseMetadata(message: string): boolean {
+  return /valid release json|latest\.json|404|not found/i.test(message);
 }
 
 function backendClassName(status: BlurBackendStatus): string {
@@ -1001,6 +1083,8 @@ function loadStoredSettings(): StoredSettings {
     format: "png",
     blurRadius: DEFAULT_BLUR_RADIUS,
     showPanelRule: true,
+    overlayPosition: "center-left",
+    fieldVisibility: defaultFieldVisibility(),
   };
   const parsed = readJson<Partial<StoredSettings>>(APP_SETTINGS_KEY);
   if (!parsed) {
@@ -1012,6 +1096,8 @@ function loadStoredSettings(): StoredSettings {
     format: parsed.format === "jpg" || parsed.format === "png" ? parsed.format : fallback.format,
     blurRadius: clampBlurSetting(parsed.blurRadius),
     showPanelRule: typeof parsed.showPanelRule === "boolean" ? parsed.showPanelRule : fallback.showPanelRule,
+    overlayPosition: validOverlayPosition(parsed.overlayPosition) ? parsed.overlayPosition : fallback.overlayPosition,
+    fieldVisibility: normalizeFieldVisibility(parsed.fieldVisibility),
   };
 }
 
@@ -1063,6 +1149,8 @@ function normalizePreset(value: unknown): UserPreset | null {
     format: candidate.format === "jpg" || candidate.format === "png" ? candidate.format : "png",
     blurRadius: clampBlurSetting(candidate.blurRadius),
     showPanelRule: typeof candidate.showPanelRule === "boolean" ? candidate.showPanelRule : true,
+    overlayPosition: validOverlayPosition(candidate.overlayPosition) ? candidate.overlayPosition : "center-left",
+    fieldVisibility: normalizeFieldVisibility(candidate.fieldVisibility),
   };
 }
 
@@ -1089,6 +1177,30 @@ function stringValue(value: unknown): string {
 
 function validThemeId(value: unknown): value is string {
   return typeof value === "string" && THEMES.some((theme) => theme.id === value);
+}
+
+function validOverlayPosition(value: unknown): value is OverlayPosition {
+  return typeof value === "string" && OVERLAY_POSITIONS.some((position) => position.value === value);
+}
+
+function defaultFieldVisibility(): FieldVisibility {
+  return USER_FIELD_KEYS.reduce((visibility, key) => {
+    visibility[key] = true;
+    return visibility;
+  }, {} as FieldVisibility);
+}
+
+function normalizeFieldVisibility(value: unknown): FieldVisibility {
+  const fallback = defaultFieldVisibility();
+  if (!value || typeof value !== "object") {
+    return fallback;
+  }
+
+  const candidate = value as Partial<Record<UserFieldKey, unknown>>;
+  return USER_FIELD_KEYS.reduce((visibility, key) => {
+    visibility[key] = typeof candidate[key] === "boolean" ? candidate[key] : true;
+    return visibility;
+  }, {} as FieldVisibility);
 }
 
 function clampBlurSetting(value: unknown): number {

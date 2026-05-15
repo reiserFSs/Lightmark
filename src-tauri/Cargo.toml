@@ -1,6 +1,6 @@
 [package]
 name = "lightmark"
-version = "0.1.0"
+version = "0.1.1"
 description = "A local desktop app for rendering photo metadata summary cards."
 authors = ["Lightmark"]
 edition = "2021"

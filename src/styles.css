@@ -273,6 +273,17 @@ button:disabled {
   line-height: 1.35;
 }
 
+.release-notes {
+  max-height: 110px;
+  margin: 9px 0 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  color: rgba(236, 233, 223, 0.58);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
 .update-action {
   min-height: 32px;
   border: 1px solid rgba(236, 233, 223, 0.14);
@@ -307,7 +318,7 @@ button:disabled {
 
 .control-block label,
 .control-label,
-.field-row span,
+.field-row-heading > label,
 legend {
   color: rgba(236, 233, 223, 0.68);
   font-size: 12px;
@@ -358,6 +369,7 @@ select option {
 }
 
 .toggle-row {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -366,10 +378,57 @@ select option {
 }
 
 .toggle-row input {
-  width: 18px;
-  min-height: 18px;
+  position: absolute;
+  right: 0;
+  width: 34px;
+  min-height: 20px;
+  margin: 0;
+  opacity: 0;
+}
+
+.switch-control {
+  position: relative;
+  width: 34px;
+  height: 20px;
   flex: 0 0 auto;
-  accent-color: #ece9df;
+  border: 1px solid rgba(236, 233, 223, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  transition:
+    border-color 140ms ease,
+    background 140ms ease;
+}
+
+.switch-control::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(236, 233, 223, 0.58);
+  transition:
+    transform 140ms ease,
+    background 140ms ease;
+}
+
+.toggle-row input:checked + .switch-control,
+.visibility-toggle input:checked + .switch-control {
+  border-color: rgba(183, 222, 201, 0.48);
+  background: rgba(74, 98, 87, 0.72);
+}
+
+.toggle-row input:checked + .switch-control::after,
+.visibility-toggle input:checked + .switch-control::after {
+  transform: translateX(14px);
+  background: #ece9df;
+}
+
+.toggle-row input:focus-visible + .switch-control,
+.visibility-toggle input:focus-visible + .switch-control {
+  outline: 2px solid rgba(236, 233, 223, 0.5);
+  outline-offset: 2px;
 }
 
 .backend-status {
@@ -506,6 +565,30 @@ legend {
 .field-row {
   display: grid;
   gap: 4px;
+}
+
+.field-row-heading,
+.visibility-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.visibility-toggle {
+  position: relative;
+  justify-content: flex-end;
+  color: rgba(236, 233, 223, 0.48);
+  font-size: 11px;
+}
+
+.visibility-toggle input {
+  position: absolute;
+  right: 0;
+  width: 34px;
+  min-height: 20px;
+  margin: 0;
+  opacity: 0;
 }
 
 .hidden-input {

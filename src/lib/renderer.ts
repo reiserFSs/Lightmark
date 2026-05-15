@@ -6,6 +6,7 @@ export interface RenderSize {
 }
 
 export type BlurBackend = "WebGL" | "CPU";
+export type OverlayPosition = "top-left" | "top-right" | "center-left" | "center-right" | "bottom-left" | "bottom-right";
 
 export interface BlurredBackground {
   canvas: HTMLCanvasElement;
@@ -61,6 +62,7 @@ export function renderSummaryCanvas(
   blurredBackground?: HTMLCanvasElement,
   blurRadius = DEFAULT_BLUR_RADIUS,
   showPanelRule = true,
+  overlayPosition: OverlayPosition = "center-left",
 ): void {
   const width = Math.round(size.width * scale);
   const height = Math.round(size.height * scale);
@@ -89,13 +91,13 @@ export function renderSummaryCanvas(
   ctx.fillStyle = theme.text;
   ctx.textBaseline = "middle";
 
-  const layout = layoutForSize(size);
+  const technical = rows.filter((row) => row.group === "technical").slice(0, 5);
+  const production = rows.filter((row) => row.group === "production").slice(0, 8);
+  const layout = layoutForSize(size, overlayPosition, technical.length, production.length);
   const textScale = (width / layout.baseWidth) * layout.textBoost;
   const x = width * layout.xRatio;
   let y = height * layout.technicalYRatio;
   const iconGap = 62 * textScale;
-  const technical = rows.filter((row) => row.group === "technical").slice(0, 5);
-  const production = rows.filter((row) => row.group === "production").slice(0, 8);
 
   ctx.font = `${42 * textScale}px ${theme.fontFamily}`;
   for (const row of technical) {
@@ -654,42 +656,85 @@ interface LayoutTokens {
   ruleEndRatio: number;
 }
 
-function layoutForSize(size: RenderSize): LayoutTokens {
+function layoutForSize(
+  size: RenderSize,
+  position: OverlayPosition,
+  technicalRowCount: number,
+  productionRowCount: number,
+): LayoutTokens {
   const ratio = size.width / size.height;
+  const horizontal = position.endsWith("right") ? "right" : "left";
+  const vertical = position.startsWith("top") ? "top" : position.startsWith("bottom") ? "bottom" : "center";
+  const bottom = bottomLayoutRatios(size, technicalRowCount, productionRowCount);
 
   if (ratio < 0.92) {
-    return {
+    const layout = {
       baseWidth: PORTRAIT_DESIGN_WIDTH,
       textBoost: 1.13,
-      xRatio: 0.09,
-      technicalYRatio: 0.18,
-      ruleYRatio: 0.61,
-      ruleStartRatio: 0.09,
-      ruleEndRatio: 0.91,
+      xRatio: horizontal === "right" ? 0.47 : 0.09,
+      technicalYRatio: verticalRatio(vertical, 0.12, 0.18, bottom.technicalYRatio),
+      ruleYRatio: verticalRatio(vertical, 0.48, 0.61, bottom.ruleYRatio),
+      ruleStartRatio: horizontal === "right" ? 0.42 : 0.09,
+      ruleEndRatio: horizontal === "right" ? 0.91 : 0.91,
     };
+    return layout;
   }
 
   if (ratio <= 1.08) {
-    return {
+    const layout = {
       baseWidth: SQUARE_DESIGN_WIDTH,
       textBoost: 1.04,
-      xRatio: 0.1,
-      technicalYRatio: 0.15,
-      ruleYRatio: 0.58,
-      ruleStartRatio: 0.09,
-      ruleEndRatio: 0.9,
+      xRatio: horizontal === "right" ? 0.53 : 0.1,
+      technicalYRatio: verticalRatio(vertical, 0.11, 0.15, bottom.technicalYRatio),
+      ruleYRatio: verticalRatio(vertical, 0.46, 0.58, bottom.ruleYRatio),
+      ruleStartRatio: horizontal === "right" ? 0.48 : 0.09,
+      ruleEndRatio: horizontal === "right" ? 0.9 : 0.9,
     };
+    return layout;
   }
 
   return {
     baseWidth: LANDSCAPE_DESIGN_WIDTH,
     textBoost: 1,
-    xRatio: 0.106,
-    technicalYRatio: 0.16,
-    ruleYRatio: 0.567,
-    ruleStartRatio: 0.094,
-    ruleEndRatio: 0.884,
+    xRatio: horizontal === "right" ? 0.58 : 0.106,
+    technicalYRatio: verticalRatio(vertical, 0.12, 0.16, bottom.technicalYRatio),
+    ruleYRatio: verticalRatio(vertical, 0.47, 0.567, bottom.ruleYRatio),
+    ruleStartRatio: horizontal === "right" ? 0.54 : 0.094,
+    ruleEndRatio: horizontal === "right" ? 0.884 : 0.884,
   };
+}
+
+function bottomLayoutRatios(
+  size: RenderSize,
+  technicalRowCount: number,
+  productionRowCount: number,
+): { technicalYRatio: number; ruleYRatio: number } {
+  const ratio = size.width / size.height;
+  const baseWidth = ratio < 0.92 ? PORTRAIT_DESIGN_WIDTH : ratio <= 1.08 ? SQUARE_DESIGN_WIDTH : LANDSCAPE_DESIGN_WIDTH;
+  const textBoost = ratio < 0.92 ? 1.13 : ratio <= 1.08 ? 1.04 : 1;
+  const textScale = (size.width / baseWidth) * textBoost;
+  const bottomPadding = 0.1 * size.height;
+  const productionHeight = productionRowCount > 0 ? 50 * textScale + productionRowCount * 43 * textScale : 0;
+  const technicalHeight = Math.max(0, technicalRowCount - 1) * 72 * textScale;
+  const ruleY = Math.max(0.36 * size.height, size.height - bottomPadding - productionHeight);
+  const technicalY = Math.max(0.08 * size.height, ruleY - 50 * textScale - technicalHeight);
+
+  return {
+    technicalYRatio: technicalY / size.height,
+    ruleYRatio: ruleY / size.height,
+  };
+}
+
+function verticalRatio(position: "top" | "center" | "bottom", top: number, center: number, bottom: number): number {
+  if (position === "top") {
+    return top;
+  }
+
+  if (position === "bottom") {
+    return bottom;
+  }
+
+  return center;
 }
 
 function imageDimensions(image: CanvasImageSource): { width: number; height: number } {
