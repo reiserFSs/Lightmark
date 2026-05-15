@@ -211,7 +211,8 @@ button:disabled {
 .export-action,
 .drop-zone,
 .secondary-action,
-.danger-action {
+.danger-action,
+.update-action {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -249,6 +250,35 @@ button:disabled {
 
 .danger-action {
   color: #e8b7a8;
+}
+
+.update-panel {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(236, 233, 223, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.update-panel strong {
+  color: rgba(236, 233, 223, 0.78);
+  font-size: 12px;
+}
+
+.update-panel p {
+  margin: 5px 0 0;
+  color: rgba(236, 233, 223, 0.52);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.update-action {
+  min-height: 32px;
+  border: 1px solid rgba(236, 233, 223, 0.14);
+  color: rgba(236, 233, 223, 0.82);
+  background: rgba(236, 233, 223, 0.08);
+  font-size: 12px;
 }
 
 .control-block {
@@ -325,6 +355,21 @@ select option {
 
 .range-input:focus {
   border-color: transparent;
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 38px;
+}
+
+.toggle-row input {
+  width: 18px;
+  min-height: 18px;
+  flex: 0 0 auto;
+  accent-color: #ece9df;
 }
 
 .backend-status {

@@ -60,6 +60,7 @@ export function renderSummaryCanvas(
   scale = 1,
   blurredBackground?: HTMLCanvasElement,
   blurRadius = DEFAULT_BLUR_RADIUS,
+  showPanelRule = true,
 ): void {
   const width = Math.round(size.width * scale);
   const height = Math.round(size.height * scale);
@@ -105,12 +106,14 @@ export function renderSummaryCanvas(
   }
 
   const ruleY = height * layout.ruleYRatio;
-  ctx.strokeStyle = theme.panelRule;
-  ctx.lineWidth = Math.max(1, scale);
-  ctx.beginPath();
-  ctx.moveTo(width * layout.ruleStartRatio, ruleY);
-  ctx.lineTo(width * layout.ruleEndRatio, ruleY);
-  ctx.stroke();
+  if (showPanelRule) {
+    ctx.strokeStyle = theme.panelRule;
+    ctx.lineWidth = Math.max(1, scale);
+    ctx.beginPath();
+    ctx.moveTo(width * layout.ruleStartRatio, ruleY);
+    ctx.lineTo(width * layout.ruleEndRatio, ruleY);
+    ctx.stroke();
+  }
 
   ctx.font = `${25 * textScale}px ${theme.fontFamily}`;
   y = ruleY + 50 * textScale;

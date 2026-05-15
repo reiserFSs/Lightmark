@@ -33,5 +33,16 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDNEMEY1MUUyNkUwNjdCMTYKUldRV2V3WnU0bEVQUFVFaFFsNkhNWks0eHRpYTdjbnNqbkZaaExXcklnMWpGWHkyZkt6RU9pYnkK",
+      "endpoints": [
+        "https://github.com/reiserFSs/Lightmark/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

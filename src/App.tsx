@@ -19,6 +19,7 @@ import {
   isTauriRuntime,
   loadPhoto,
 } from "./lib/tauriApi";
+import { checkForAppUpdate, installAppUpdate, type AvailableAppUpdate, type UpdateInstallProgress } from "./lib/updater";
 import type { BlurBackend } from "./lib/renderer";
 import type { NormalizedExif, OutputFormat, PhotoAsset, UserFieldKey, UserPhotoFields } from "./lib/types";
 
@@ -64,6 +65,7 @@ interface StoredSettings {
   themeId: string;
   format: OutputFormat;
   blurRadius: number;
+  showPanelRule: boolean;
 }
 
 interface UserPreset {
@@ -73,6 +75,7 @@ interface UserPreset {
   themeId: string;
   format: OutputFormat;
   blurRadius: number;
+  showPanelRule: boolean;
 }
 
 interface ActivityStep {
@@ -94,12 +97,17 @@ export function App() {
   const [format, setFormat] = useState<OutputFormat>(initialSettings.format);
   const [blurInput, setBlurInput] = useState(initialSettings.blurRadius);
   const [blurRadius, setBlurRadius] = useState(initialSettings.blurRadius);
+  const [showPanelRule, setShowPanelRule] = useState(initialSettings.showPanelRule);
   const [presets, setPresets] = useState<UserPreset[]>(loadStoredPresets);
   const [selectedPresetId, setSelectedPresetId] = useState("");
   const [presetName, setPresetName] = useState("");
   const [status, setStatus] = useState("Open a photo to begin.");
   const [activity, setActivity] = useState<ActivityState | null>(null);
   const [isBusy, setIsBusy] = useState(false);
+  const [availableUpdate, setAvailableUpdate] = useState<AvailableAppUpdate | null>(null);
+  const [updateStatus, setUpdateStatus] = useState("Updates install from GitHub releases.");
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+  const [isInstallingUpdate, setIsInstallingUpdate] = useState(false);
   const [isDraggingPhoto, setIsDraggingPhoto] = useState(false);
   const [previewImage, setPreviewImage] = useState<HTMLImageElement | null>(null);
   const [previewBackground, setPreviewBackground] = useState<HTMLCanvasElement | null>(null);
@@ -123,12 +131,20 @@ export function App() {
   );
 
   useEffect(() => {
-    saveStoredSettings({ themeId, format, blurRadius });
-  }, [themeId, format, blurRadius]);
+    saveStoredSettings({ themeId, format, blurRadius, showPanelRule });
+  }, [themeId, format, blurRadius, showPanelRule]);
 
   useEffect(() => {
     saveStoredPresets(presets);
   }, [presets]);
+
+  useEffect(() => {
+    if (!isTauriRuntime() || isDevBuild()) {
+      return;
+    }
+
+    void checkForUpdates(false);
+  }, []);
 
   useEffect(() => {
     if (!isTauriRuntime()) {
@@ -243,7 +259,17 @@ export function App() {
 
     renderFrameRef.current = window.requestAnimationFrame(() => {
       if (canvasRef.current) {
-        renderSummaryCanvas(canvasRef.current, previewImage, rows, theme, renderSize, 0.5, previewBackground, blurRadius);
+        renderSummaryCanvas(
+          canvasRef.current,
+          previewImage,
+          rows,
+          theme,
+          renderSize,
+          0.5,
+          previewBackground,
+          blurRadius,
+          showPanelRule,
+        );
         completeActivityStep("render");
         finishActivitySoon();
       }
@@ -255,7 +281,7 @@ export function App() {
         renderFrameRef.current = null;
       }
     };
-  }, [previewImage, previewBackground, rows, theme, renderSize, blurRadius]);
+  }, [previewImage, previewBackground, rows, theme, renderSize, blurRadius, showPanelRule]);
 
   async function handleOpenPhoto() {
     setIsBusy(true);
@@ -471,6 +497,7 @@ export function App() {
       themeId,
       format,
       blurRadius,
+      showPanelRule,
     };
 
     setPresets((current) => {
@@ -499,6 +526,7 @@ export function App() {
     setFormat(selectedPreset.format);
     setBlurInput(selectedPreset.blurRadius);
     setBlurRadius(selectedPreset.blurRadius);
+    setShowPanelRule(selectedPreset.showPanelRule);
     setStatus(`Applied preset "${selectedPreset.name}".`);
   }
 
@@ -544,7 +572,7 @@ export function App() {
 
       setActivityStep("compose", "active");
       await nextFrame();
-      renderSummaryCanvas(canvas, image, rows, theme, renderSize, 1, background.canvas, blurRadius);
+      renderSummaryCanvas(canvas, image, rows, theme, renderSize, 1, background.canvas, blurRadius, showPanelRule);
       setActivityStep("compose", "done");
 
       setActivityStep("encode", "active");
@@ -580,6 +608,52 @@ export function App() {
       setStatus(errorMessage(error, "Could not export image."));
     } finally {
       setIsBusy(false);
+    }
+  }
+
+  async function checkForUpdates(showUpToDateStatus = true) {
+    if (!isTauriRuntime()) {
+      setUpdateStatus("Updates are available in desktop builds.");
+      return;
+    }
+
+    setIsCheckingUpdate(true);
+    setUpdateStatus("Checking for updates...");
+
+    try {
+      const update = await checkForAppUpdate();
+      setAvailableUpdate(update);
+      if (update) {
+        setUpdateStatus(`Version ${update.version} is available.`);
+        return;
+      }
+
+      if (showUpToDateStatus) {
+        setUpdateStatus("Lightmark is up to date.");
+      } else {
+        setUpdateStatus("No update available.");
+      }
+    } catch (error) {
+      setAvailableUpdate(null);
+      setUpdateStatus(errorMessage(error, "Could not check for updates."));
+    } finally {
+      setIsCheckingUpdate(false);
+    }
+  }
+
+  async function installAvailableUpdate() {
+    setIsInstallingUpdate(true);
+    setUpdateStatus("Preparing update...");
+
+    try {
+      await installAppUpdate((progress) => {
+        setUpdateStatus(formatUpdateProgress(progress));
+      });
+      setUpdateStatus("Update installed. Restarting...");
+    } catch (error) {
+      setUpdateStatus(errorMessage(error, "Could not install update."));
+    } finally {
+      setIsInstallingUpdate(false);
     }
   }
 
@@ -730,6 +804,17 @@ export function App() {
             </div>
           </div>
 
+          <div className="control-block">
+            <label className="toggle-row">
+              <span>Divider line</span>
+              <input
+                type="checkbox"
+                checked={showPanelRule}
+                onChange={(event) => setShowPanelRule(event.target.checked)}
+              />
+            </label>
+          </div>
+
           <div className="control-block preset-block">
             <label htmlFor="preset">Preset</label>
             <select id="preset" value={selectedPresetId} onChange={(event) => handlePresetSelection(event.target.value)}>
@@ -763,6 +848,27 @@ export function App() {
             <Download aria-hidden="true" size={18} />
             Export
           </button>
+
+          <div className="update-panel">
+            <div>
+              <strong>Updates</strong>
+              <p>{updateStatus}</p>
+            </div>
+            {availableUpdate ? (
+              <button className="update-action" type="button" onClick={installAvailableUpdate} disabled={isInstallingUpdate}>
+                {isInstallingUpdate ? "Installing" : "Install"}
+              </button>
+            ) : (
+              <button
+                className="update-action"
+                type="button"
+                onClick={() => void checkForUpdates()}
+                disabled={isCheckingUpdate || isInstallingUpdate}
+              >
+                {isCheckingUpdate ? "Checking" : "Check"}
+              </button>
+            )}
+          </div>
 
           <div className="version-indicator">Lightmark v{__APP_VERSION__}</div>
         </aside>
@@ -829,6 +935,27 @@ function backendLabel(status: BlurBackendStatus): string {
   return status;
 }
 
+function formatUpdateProgress(progress: UpdateInstallProgress): string {
+  if (progress.phase === "starting") {
+    return "Downloading update...";
+  }
+
+  if (progress.phase === "finished") {
+    return "Installing update...";
+  }
+
+  if (!progress.contentLength) {
+    return "Downloading update...";
+  }
+
+  const percent = Math.min(100, Math.round((progress.downloadedBytes / progress.contentLength) * 100));
+  return `Downloading update ${percent}%...`;
+}
+
+function isDevBuild(): boolean {
+  return Boolean((import.meta as ImportMeta & { env?: { DEV?: boolean } }).env?.DEV);
+}
+
 function backendClassName(status: BlurBackendStatus): string {
   return status.toLowerCase();
 }
@@ -873,6 +1000,7 @@ function loadStoredSettings(): StoredSettings {
     themeId: DEFAULT_THEME.id,
     format: "png",
     blurRadius: DEFAULT_BLUR_RADIUS,
+    showPanelRule: true,
   };
   const parsed = readJson<Partial<StoredSettings>>(APP_SETTINGS_KEY);
   if (!parsed) {
@@ -883,6 +1011,7 @@ function loadStoredSettings(): StoredSettings {
     themeId: validThemeId(parsed.themeId) ? parsed.themeId : fallback.themeId,
     format: parsed.format === "jpg" || parsed.format === "png" ? parsed.format : fallback.format,
     blurRadius: clampBlurSetting(parsed.blurRadius),
+    showPanelRule: typeof parsed.showPanelRule === "boolean" ? parsed.showPanelRule : fallback.showPanelRule,
   };
 }
 
@@ -933,6 +1062,7 @@ function normalizePreset(value: unknown): UserPreset | null {
     themeId: validThemeId(candidate.themeId) ? candidate.themeId : DEFAULT_THEME.id,
     format: candidate.format === "jpg" || candidate.format === "png" ? candidate.format : "png",
     blurRadius: clampBlurSetting(candidate.blurRadius),
+    showPanelRule: typeof candidate.showPanelRule === "boolean" ? candidate.showPanelRule : true,
   };
 }
 

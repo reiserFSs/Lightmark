@@ -10,6 +10,7 @@ use std::fs;
 use std::fs::File;
 use std::io::{Cursor, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
+#[cfg(target_os = "macos")]
 use std::sync::atomic::{AtomicU64, Ordering};
 
 #[derive(Debug, Default, Serialize)]
@@ -62,6 +63,7 @@ const LARGE_NATIVE_PREVIEW_BYTES: u64 = 25 * 1024 * 1024;
 const MAX_DECODE_DIMENSION: u32 = 32_000;
 const MAX_DECODE_ALLOC_BYTES: u64 = 768 * 1024 * 1024;
 const MAX_JPEG_METADATA_BYTES: usize = 4 * 1024 * 1024;
+#[cfg(target_os = "macos")]
 static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 #[tauri::command]
@@ -294,6 +296,7 @@ fn generate_platform_preview_png(
     Err("Platform preview generation is not available on this build.".to_string())
 }
 
+#[cfg(target_os = "macos")]
 fn unique_temp_png(prefix: &str) -> Result<PathBuf, String> {
     let stamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -307,6 +310,7 @@ fn unique_temp_png(prefix: &str) -> Result<PathBuf, String> {
     )))
 }
 
+#[cfg(target_os = "macos")]
 fn read_and_remove_temp_file(path: &Path, label: &str) -> Result<Vec<u8>, String> {
     let result = fs::read(path).map_err(|error| format!("Could not read {label}: {error}"));
     let _ = fs::remove_file(path);
@@ -1055,6 +1059,8 @@ fn main() {
     }
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![load_photo, export_summary])
         .run(tauri::generate_context!())
