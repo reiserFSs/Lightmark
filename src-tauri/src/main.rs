@@ -1,3 +1,5 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
 use exif::{In, Reader, Tag, Value};
@@ -79,6 +81,11 @@ fn load_photo(path: String) -> Result<PhotoAsset, String> {
                 Ok(preview) => format!("data:image/png;base64,{}", STANDARD.encode(preview.bytes)),
                 Err(_) => String::new(),
             }
+        } else if should_generate_rust_preview(&extension) {
+            let bytes = fs::read(&source_path)
+                .map_err(|error| format!("Could not read photo preview: {error}"))?;
+            let preview = decode_to_preview_png(&source_path, &bytes)?;
+            format!("data:image/png;base64,{}", STANDARD.encode(preview.bytes))
         } else {
             String::new()
         };
@@ -238,6 +245,10 @@ fn should_generate_platform_preview(path: &Path, extension: &str) -> bool {
         && fs::metadata(path)
             .map(|metadata| metadata.len() >= LARGE_NATIVE_PREVIEW_BYTES)
             .unwrap_or(false)
+}
+
+fn should_generate_rust_preview(extension: &str) -> bool {
+    !cfg!(target_os = "macos") && matches!(extension, "jpg" | "jpeg" | "png")
 }
 
 #[cfg(target_os = "macos")]
