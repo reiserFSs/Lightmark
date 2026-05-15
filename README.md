@@ -76,22 +76,6 @@ npm run tauri:build
 
 ## Releases and Updates
 
-Lightmark uses Tauri's updater plugin with GitHub Releases. Normal development builds do not create updater artifacts; the release workflow enables signed updater artifacts with `src-tauri/tauri.release.conf.json`.
-
-The updater public key is stored in `src-tauri/tauri.conf.json`. The matching private key was generated locally at:
-
-```text
-~/.tauri/lightmark.key
-```
-
-Add the private key to GitHub Actions before publishing releases:
-
-```bash
-gh secret set TAURI_SIGNING_PRIVATE_KEY < ~/.tauri/lightmark.key
-```
-
-This key was generated without a password, so `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` can be left unset. If you generate a new updater key, update the public key in `src-tauri/tauri.conf.json` and replace the GitHub secret.
-
 To publish a release:
 
 ```bash
